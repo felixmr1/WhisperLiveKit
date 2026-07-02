@@ -183,11 +183,22 @@ def _speaker_label_from_index(index: int) -> str:
 
 def _speaker_label(speaker, speaker_labels: dict) -> str:
     """Map internal speaker IDs to OpenAI-style speaker labels."""
+    # Diarized WLK lines use 1-based numeric speaker IDs, while OpenAI's
+    # diarized response examples use stable alphabetic labels.
     if isinstance(speaker, int) and speaker > 0:
         return _speaker_label_from_index(speaker - 1)
     if speaker not in speaker_labels:
+        # Non-numeric speaker IDs can come from other diarization backends, so
+        # keep a deterministic first-seen mapping for those labels.
         speaker_labels[speaker] = _speaker_label_from_index(len(speaker_labels))
     return speaker_labels[speaker]
+
+
+def _duration_usage(duration: float) -> dict:
+    return {
+        "type": "duration",
+        "seconds": round(duration),
+    }
 
 
 def _format_openai_response(front_data, response_format: str, language: Optional[str], duration: float) -> dict:
@@ -208,6 +219,8 @@ def _format_openai_response(front_data, response_format: str, language: Optional
         segments = []
         text_parts = []
         for line in lines:
+            # WLK represents silence as speaker -2; diarized_json only emits
+            # spoken transcript segments with actual text.
             if line.get("speaker") == -2 or not line.get("text"):
                 continue
             speaker = _speaker_label(line.get("speaker", 1), speaker_labels)
@@ -222,6 +235,8 @@ def _format_openai_response(front_data, response_format: str, language: Optional
                 "text": text,
                 "speaker": speaker,
             })
+            # Match the diarized_json top-level transcript style by preserving
+            # speaker turns in the combined text instead of flattening them.
             text_parts.append(f"{speaker}: {text}")
 
         return {
@@ -229,6 +244,7 @@ def _format_openai_response(front_data, response_format: str, language: Optional
             "duration": round(duration, 2),
             "text": "\n".join(text_parts).strip(),
             "segments": segments,
+            "usage": _duration_usage(duration),
         }
 
     # Build segments and words for verbose_json
@@ -264,6 +280,7 @@ def _format_openai_response(front_data, response_format: str, language: Optional
             "text": full_text,
             "words": words,
             "segments": segments,
+            "usage": _duration_usage(duration),
         }
 
     if response_format in ("srt", "vtt"):
@@ -281,7 +298,10 @@ def _format_openai_response(front_data, response_format: str, language: Optional
         return "\n".join(lines_out)
 
     # Default: json
-    return {"text": full_text}
+    return {
+        "text": full_text,
+        "usage": _duration_usage(duration),
+    }
 
 
 def _srt_timestamp(seconds: float, fmt: str) -> str:
