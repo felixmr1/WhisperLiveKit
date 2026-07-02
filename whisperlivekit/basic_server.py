@@ -194,6 +194,13 @@ def _speaker_label(speaker, speaker_labels: dict) -> str:
     return speaker_labels[speaker]
 
 
+def _duration_usage(duration: float) -> dict:
+    return {
+        "type": "duration",
+        "seconds": round(duration),
+    }
+
+
 def _format_openai_response(front_data, response_format: str, language: Optional[str], duration: float) -> dict:
     """Convert FrontData to OpenAI-compatible response."""
     d = front_data.to_dict()
@@ -237,6 +244,7 @@ def _format_openai_response(front_data, response_format: str, language: Optional
             "duration": round(duration, 2),
             "text": "\n".join(text_parts).strip(),
             "segments": segments,
+            "usage": _duration_usage(duration),
         }
 
     # Build segments and words for verbose_json
@@ -272,6 +280,7 @@ def _format_openai_response(front_data, response_format: str, language: Optional
             "text": full_text,
             "words": words,
             "segments": segments,
+            "usage": _duration_usage(duration),
         }
 
     if response_format in ("srt", "vtt"):
@@ -289,7 +298,10 @@ def _format_openai_response(front_data, response_format: str, language: Optional
         return "\n".join(lines_out)
 
     # Default: json
-    return {"text": full_text}
+    return {
+        "text": full_text,
+        "usage": _duration_usage(duration),
+    }
 
 
 def _srt_timestamp(seconds: float, fmt: str) -> str:
