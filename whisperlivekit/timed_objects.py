@@ -121,7 +121,7 @@ class Segment(TimedText):
     end: Optional[float]
     text: Optional[str]
     speaker: Optional[str]
-    tokens: Optional[ASRToken] = None
+    tokens: Optional[List[ASRToken]] = None
     translation: Optional[Translation] = None
 
     @classmethod
@@ -149,6 +149,7 @@ class Segment(TimedText):
                 end=end_token.end,
                 text=''.join(token.text for token in tokens),
                 speaker=-1,
+                tokens=list(tokens),
                 detected_language=start_token.detected_language
             )
 
